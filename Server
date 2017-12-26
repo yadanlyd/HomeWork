@@ -1,0 +1,107 @@
+# 服务器
+from tkinter import *
+import time
+from socket import *
+import threading
+import pickle
+
+
+class chat():
+    def __init__(self, conSocket, clientAddr):
+        self.socket = conSocket
+        self.id = clientAddr[0]
+
+        self.root = Tk()
+        self.root.title('connect with' + self.id)
+
+
+        # 创建几个frame作为容器
+        self.frame_left_top = Frame(width=38, height=27, bg='white')
+        self.frame_left_center = Frame(width=38, height=10, bg='white')
+        self.frame_left_bottom = Frame(width=38, height=3)
+
+        ##创建需要的几个元素
+        self.sb = Scrollbar(self.frame_left_top)
+        self.sb.pack(side=RIGHT, fill=Y)
+        self.text_msglist = Text(self.frame_left_top, width=35, height=27, yscrollcommand=self.sb.set)
+        self.sb.config(command=self.text_msglist.yview)
+        self.text_msglist.pack(side=LEFT, fill=BOTH)
+        self.frame_left_top.pack()
+
+        self.text_msg = Text(self.frame_left_center, width=38, height=7)
+        self.text_msg.pack(side=LEFT, fill=BOTH)
+        self.frame_left_center.pack()
+
+        self.button_sendmsg = Button(self.frame_left_bottom, text='send', command=self.sendmessage)
+        self.button_sendmsg.pack()
+        self.frame_left_bottom.pack()
+
+        # 创建一个绿色的tag
+        self.text_msglist.tag_config('green', foreground='#008B00')
+
+    # 发送按钮事件
+    def sendmessage(self):
+        msgcontent = 'My' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + '\n '
+        self.text_msglist.insert(END, msgcontent, 'green')
+        self.text_msglist.insert(END, self.text_msg.get('0.0', END))
+        self.socket.send(self.text_msg.get('0.0', END).encode(encoding="utf-8"))
+        self.text_msg.delete('0.0', END)
+
+
+def chat_recv(conSocket, clientAddr):
+    while True:
+        print('%s:%s 已连接'% clientAddr)
+        name = conSocket.recv(1024).decode('utf-8')
+        userName.append(name)
+        acceptSocks.append(conSocket)
+        while True:
+            msgcontent=[]
+            msg = conSocket.recv(2048)
+            time.sleep(1)
+            print(msg.decode('utf-8'))
+            if not msg or msg.decode('utf-8')=='exit':
+                break
+            elif msg.decode('utf-8') == ("查询当前用户\n"):
+                msgcontent.append('当前用户：')
+                findName(msgcontent, conSocket)
+            else:
+                msgcontent.append(name)
+                msgcontent.append(msg.decode('utf-8'))
+                print(msgcontent)
+                send(msgcontent,conSocket)
+        conSocket.close()
+        acceptSocks.remove(conSocket)
+        print('%s:%s 链接已关闭 .'% clientAddr)
+
+def send(msgcontent,User):
+    p = pickle.dumps(msgcontent)
+    for user in acceptSocks:
+        print(p)
+        if user != User:
+            user.send(p)
+        else:
+            continue
+
+def findName(msgcontent, userSock):
+    data = ''
+    for username in userName:
+        data = username + '' + data
+    print(data)
+    msgcontent.append(data)
+    b = pickle.dumps(msgcontent)
+    userSock.send(b)
+
+
+serverPort = 60008
+serverScoket = socket(AF_INET, SOCK_STREAM)
+serverScoket.bind(('', serverPort))
+serverScoket.listen(50)
+acceptSocks = []
+userName = []
+while True:
+    conSocket, clientAddr = serverScoket.accept()
+    client = chat(conSocket, clientAddr)
+    t = threading.Thread(target=chat_recv, args=(conSocket, clientAddr))
+    t.start()
+
+#client.root.mainloop()
